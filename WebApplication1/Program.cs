@@ -1,21 +1,44 @@
+using Microsoft.EntityFrameworkCore;
+using NLog;
+using NLog.Web;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+var logger = LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
 
-builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-
-var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+try
 {
-    app.MapOpenApi();
+    builder.Logging.ClearProviders();
+    builder.Host.UseNLog();
+
+    builder.Services.AddControllers();
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen();
+
+    var app = builder.Build();
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path == "/")
+        {
+            context.Response.Redirect("/swagger");
+            return;
+        }
+        await next();
+    });
+
+    app.UseSwagger();
+    app.UseSwaggerUI();
+
+    app.UseAuthorization();
+    app.MapControllers();
+
+    app.Run();
 }
-
-app.UseAuthorization();
-
-app.MapControllers();
-
-app.Run();
+catch (Exception ex)
+{
+    logger.Error(ex, "Stopped program because of exception");
+}
+finally
+{
+    LogManager.Shutdown();
+}
